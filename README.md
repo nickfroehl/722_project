@@ -2,8 +2,11 @@
 
 ### Components
 - PDDLGym (modified)
+    - Origin: https://github.com/tomsilver/pddlgym/commit/01c133a6707c51e570582794b27b33f9adcafd56
 - FF Planner v2.3 (patched to compile, logic unchanged)
+    - Origin: https://web.archive.org/web/20240604122952/https://fai.cs.uni-saarland.de/hoffmann/ff/FF-v2.3.tgz
 - PDDLGym_Planners (modified)
+    - Origin: https://github.com/ronuchit/pddlgym_planners/commit/d552c8a75a50a47f5ad46b1b55194254995331b2
 
 ### Installation
 - Ubuntu 24.04 (or whichever works)
