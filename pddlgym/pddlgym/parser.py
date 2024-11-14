@@ -6,6 +6,7 @@ from pddlgym.structs import (Type, Predicate, Literal, LiteralConjunction,
                              DerivedPredicate, NoChange)
 
 import re
+import copy
 import pddlgym.determinization as determinization
 
 
@@ -349,7 +350,7 @@ class PDDLDomain:
     def determinize(self):
         """ACTUALLY determinize this operator by assuming max-probability effects.
         """
-        #assert self.is_probabilistic
+        #assert self.is_probabilistic   # this is so needless
         determinization.singlemax(self, in_place=True)
 
     def _organize_parent_types(self):
@@ -372,9 +373,18 @@ class PDDLDomain:
         return parent_types
 
     def to_string(self):
-        """Create PDDL string
+        if not self.operators_as_actions:
+            predicates = "\n\t".join([lit.pddl_str() for lit in self.predicates.values()])
+        else:
+            # use self._predicates, generated during self._create_actions_from_operators()
+            predicates = "\n\t".join([lit.pddl_str() for lit in self._predicates.values()])
+        return self.to_string_half_actionized(predicates)
+
+    def to_string_half_actionized(self, predicates):
+        """Create PDDL string with an :actions statement and predicates inside the actions
+        but also it doesn't add the predicates to the actions themselves, so its not even correctly or completely implemented....
         """
-        predicates = "\n\t".join([lit.pddl_str() for lit in self.predicates.values()])
+        
         operators = "\n\t".join([op.pddl_str() for op in self.operators.values()])
         if self.constants:
             constants_str = "\n\t".join(list(sorted(map(lambda o: str(o).replace(":", " - "),
@@ -404,6 +414,7 @@ class PDDLDomain:
                    constants, predicates, " ".join(map(str, self.actions)), operators,
                    self._derived_preds_pddl_str())
         return domain_str
+
 
     def write(self, fname):
         """Write the domain PDDL string to a file.
@@ -471,8 +482,12 @@ class PDDLDomainParser(PDDLParser, PDDLDomain):
         actions = set()
         for name, operator in self.operators.items():
             types = [p.var_type for p in operator.params]
-            action = Predicate(name, len(types), types)
+            action = Predicate(name, len(types), types) 
             assert name not in self.predicates, "Cannot have predicate with same name as operator"
+            
+            # Let's at least retain the original list of actual predicates instead of the actions-as-predicates
+            #   so that when we to_string, we don't hamstring ourselves like fools
+            self._predicates = copy.deepcopy(self.predicates)
             self.predicates[name] = action
             actions.add(action)
         return actions

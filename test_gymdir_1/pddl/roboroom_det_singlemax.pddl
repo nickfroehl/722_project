@@ -5,7 +5,6 @@
   
   (:predicates (at ?v0 - default)
 	(connected ?v0 - default ?v1 - default)
-	(move ?v0 - default ?v1 - default)
   )
   ; (:actions move)
 

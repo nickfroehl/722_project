@@ -55,13 +55,18 @@ def get_successor_state(state, action, domain, raise_error_on_invalid_action=Fal
     -------
     next_state : State
     """
+
+    #print(f"action: {action}")
     selected_operator, assignment = _select_operator(state, action, domain, 
         inference_mode=inference_mode, 
         require_unique_assignment=require_unique_assignment)
 
+    #print(f"selected_operator: {selected_operator}\n")
+    #print(f"assignment: {assignment}\n")
+
     # A ground operator was found; execute the ground effects
     if assignment is not None:
-        # ACTUALLY SUPPORT PROBABILISTIC EFFECTS, LIKE YOU HAD FALSELY PROMISED TO DO
+        # ACTUALLY SUPPORT PROBABILISTIC EFFECTS, LIKE THEY HAD FALSELY PROMISED TO DO
         selected_effects = selected_operator.effects
         while isinstance(selected_effects, ProbabilisticEffect):
             selected_effects, prob = selected_effects.sample(ret_prob = True)
@@ -110,6 +115,7 @@ def _select_operator(state, action, domain, inference_mode="infer",
             if name.lower() == action.predicate.name.lower():
                 assert len(possible_operators) == 0
                 possible_operators.add(operator)
+                #print("HIT")
     else:
         # Possibly multiple operators per action
         possible_operators = set(domain.operators.values())
@@ -496,6 +502,7 @@ class PDDLEnv(gym.Env):
             See self._get_debug_info.
         """
         state, reward, done, debug_info = self.sample_transition(action)
+        #print(f"STATE: {state}")
         self.set_state(state)
         return state, reward, done, False, debug_info
 
