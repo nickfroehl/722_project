@@ -6,6 +6,7 @@ from pddlgym.structs import (Type, Predicate, Literal, LiteralConjunction,
                              DerivedPredicate, NoChange)
 
 import re
+import pddlgym.determinization as determinization
 
 
 FAST_DOWNWARD_STR = """
@@ -346,20 +347,10 @@ class PDDLDomain:
         return self._organize_parent_types()
 
     def determinize(self):
-        """Determinize this operator by assuming max-probability effects.
+        """ACTUALLY determinize this operator by assuming max-probability effects.
         """
-        assert self.is_probabilistic
-        for op in self.operators.values():
-            toremove = set()
-            for i, lit in enumerate(op.effects.literals):
-                if isinstance(lit, ProbabilisticEffect):
-                    chosen_effect = lit.max()
-                    if chosen_effect == NoChange():
-                        toremove.add(lit)
-                    else:
-                        op.effects.literals[i] = chosen_effect
-            for rem in toremove:  # remove effects where NoChange is max-probability
-                op.effects.literals.remove(rem)
+        #assert self.is_probabilistic
+        determinization.singlemax(self, in_place=True)
 
     def _organize_parent_types(self):
         """Create dict of type -> parent types from type hierarchy
@@ -444,7 +435,6 @@ class PDDLDomainParser(PDDLParser, PDDLDomain):
     def __init__(self, domain_fname, expect_action_preds=True, operators_as_actions=False):
         # Parsing sets all domain fields
         PDDLDomain.__init__(self, operators_as_actions=operators_as_actions)
-
         self.domain_fname = domain_fname
 
         # Read files.
@@ -603,6 +593,7 @@ class PDDLDomainParser(PDDLParser, PDDLDomain):
 
     def _parse_domain_operators(self):
         matches = re.finditer(r"\(:action", self.domain)
+        self._actions = {}
         self.operators = {}
         for match in matches:
             start_ind = match.start()

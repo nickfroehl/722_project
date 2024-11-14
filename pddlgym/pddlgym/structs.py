@@ -462,11 +462,15 @@ class ProbabilisticEffect:
         return str(self) == str(other)
 
     def pddl_str(self):
-        raise NotImplementedError("Can't PDDL-ify a probabilistic effect")
+        raise NotImplementedError("Can't PDDL-ify a probabilistic effect")  
 
-    def sample(self):
-        return np.random.choice(self.literals, p=self.probabilities)
-
+    def sample(self, ret_prob = False):
+        if ret_prob:
+            choice = np.random.choice(self.literals, p=self.probabilities)
+            return (choice, self.probabilities[self.literals.index(choice)]) 
+        else:
+            return np.random.choice(self.literals, p=self.probabilities)
+    
     def max(self):
         return self.literals[np.argmax(self.probabilities)]
 

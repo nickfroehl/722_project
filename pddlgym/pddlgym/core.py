@@ -28,6 +28,7 @@ import gym
 
 import numpy as np
 
+DBG = True
 
 
 class InvalidAction(Exception):
@@ -60,12 +61,19 @@ def get_successor_state(state, action, domain, raise_error_on_invalid_action=Fal
 
     # A ground operator was found; execute the ground effects
     if assignment is not None:
+        # ACTUALLY SUPPORT PROBABILISTIC EFFECTS, LIKE YOU HAD FALSELY PROMISED TO DO
+        selected_effects = selected_operator.effects
+        while isinstance(selected_effects, ProbabilisticEffect):
+            selected_effects, prob = selected_effects.sample(ret_prob = True)
+            if DBG:
+                print(f"selected {selected_effects}, which has probability {prob}")
+
         # Get operator effects
-        if isinstance(selected_operator.effects, LiteralConjunction):
-            effects = selected_operator.effects.literals
+        if isinstance(selected_effects, LiteralConjunction):
+            effects = selected_effects.literals
         else:
-            assert isinstance(selected_operator.effects, Literal)
-            effects = [selected_operator.effects]
+            assert isinstance(selected_effects, Literal)
+            effects = [selected_effects]
 
         state = _apply_effects(
             state,
@@ -300,6 +308,7 @@ class PDDLEnv(gym.Env):
         Let self.action_space dynamically change on each iteration to
         include only valid actions (must match operator preconditions).
     """
+    
     def __init__(self, domain_file, problem_dir, render=None, seed=0,
                  raise_error_on_invalid_action=False,
                  operators_as_actions=False,
@@ -433,15 +442,15 @@ class PDDLEnv(gym.Env):
 
         if not self._problem_index_fixed:
             self._problem_idx = self.rng.choice(len(self.problems))
-        self._problem = self.problems[self._problem_idx]
+        self.problem = self.problems[self._problem_idx]
 
-        initial_state = State(frozenset(self._problem.initial_state),
-                              frozenset(self._problem.objects),
-                              self._problem.goal)
+        initial_state = State(frozenset(self.problem.initial_state),
+                              frozenset(self.problem.objects),
+                              self.problem.goal)
         initial_state = self._handle_derived_literals(initial_state)
         self.set_state(initial_state)
 
-        self._goal = self._problem.goal
+        self._goal = self.problem.goal
         debug_info = self._get_debug_info()
 
         self._action_space.reset_initial_state(initial_state)
@@ -453,7 +462,7 @@ class PDDLEnv(gym.Env):
         Contains the problem file and domain file
         for interaction with a planner.
         """
-        info = {'problem_file' : self._problem.problem_fname,
+        info = {'problem_file' : self.problem.problem_fname,
                 'domain_file' : self.domain.domain_fname }
         return info
 
