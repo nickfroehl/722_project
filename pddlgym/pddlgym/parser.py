@@ -445,6 +445,7 @@ class PDDLDomainParser(PDDLParser, PDDLDomain):
     """
     def __init__(self, domain_fname, expect_action_preds=True, operators_as_actions=False):
         # Parsing sets all domain fields
+        self._predicates = None
         PDDLDomain.__init__(self, operators_as_actions=operators_as_actions)
         self.domain_fname = domain_fname
 
@@ -483,11 +484,12 @@ class PDDLDomainParser(PDDLParser, PDDLDomain):
         for name, operator in self.operators.items():
             types = [p.var_type for p in operator.params]
             action = Predicate(name, len(types), types) 
-            assert name not in self.predicates, "Cannot have predicate with same name as operator"
+            assert name not in self.predicates, f"Cannot have predicate with same name as operator: {name}"
             
             # Let's at least retain the original list of actual predicates instead of the actions-as-predicates
             #   so that when we to_string, we don't hamstring ourselves like fools
-            self._predicates = copy.deepcopy(self.predicates)
+            if self._predicates is None:
+                self._predicates = copy.deepcopy(self.predicates)
             self.predicates[name] = action
             actions.add(action)
         return actions
@@ -778,8 +780,7 @@ def parse_plan_step(plan_step, operators, action_predicates, objects, operators_
     plan_step_split = plan_step.split()
 
     if operators_as_actions:
-        action_predicate = [a for a in action_predicates \
-            if a.name.lower() == plan_step_split[0].lower()][0]
+        action_predicate = [a for a in action_predicates if a.name.lower() == plan_step_split[0].lower()][0]
         object_names = plan_step_split[1:]
         args = []
         for name in object_names:

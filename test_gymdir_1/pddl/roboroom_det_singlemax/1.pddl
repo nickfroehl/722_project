@@ -2,7 +2,7 @@
   (:domain roboroom_nd)
 
   (:objects
-    room1 room2 room3  ; Define the rooms
+    room1 room2 room3 ; Define the rooms
   )
 
   (:init

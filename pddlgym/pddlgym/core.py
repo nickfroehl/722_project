@@ -366,6 +366,16 @@ class PDDLEnv(gym.Env):
             type_hierarchy=self.domain.type_hierarchy,
             type_to_parent_types=self.domain.type_to_parent_types)
 
+    # def load_single_problem(problem_filepath):
+    #     """Parse a single PDDL problem file, append it to current problems list,
+    #     and return its index; so folks can self.fix_problem_index to it."""
+    #     problem = PDDLProblemParser(problem_filepath, self.domain.domain_name, 
+    #             self.domain.types, self.domain.predicates,
+    #             self.domain.actions, self.domain.constants)
+    #     idx = len(self.problems)
+    #     self.problems.append(problem)
+    #     return idx
+
     @staticmethod
     def load_pddl(domain_file, problem_dir, operators_as_actions=False):
         """

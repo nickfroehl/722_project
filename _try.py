@@ -1,7 +1,8 @@
-import os, shutil
+import sys, os, shutil
 import pddlgym
 import pddlgym.determinization
 from pddlgym_planners.ff import FF
+from pddlgym_planners.planner import PlanningFailure
 
 ### SETUP
 #### CONSTS/MODE
@@ -9,7 +10,7 @@ istest = False
 kwargs = {'operators_as_actions' : True, 'dynamic_action_space' : True}
 determinize = pddlgym.determinization.singlemax
 #### PROBLEM
-domain_basename = "roboroom"
+domain_basename = "robowalk"
 domain_ndname = f"{domain_basename}_nd"
 nd_gym_name = f"PDDLEnv{domain_ndname.capitalize()}-v0"
 # EXPECT THAT nd_gym_name WAS PREREGISTERED IN CURRENT_GYMDIR'S __init__.py
@@ -35,10 +36,10 @@ srcproblemdir = f"{dstdir}{domain_ndname}/"
 dstproblemdir = f"{dstdir}{domain_detname}/"
 if not os.path.exists(dstproblemdir):
     os.makedirs(dstproblemdir)
-    for problemfilename in os.listdir(srcproblemdir):
-        srcpath = os.path.join(srcproblemdir, problemfilename)
-        dstpath = os.path.join(dstproblemdir, problemfilename)
-        shutil.copy2(srcpath, dstpath)
+for problemfilename in os.listdir(srcproblemdir):
+    srcpath = os.path.join(srcproblemdir, problemfilename)
+    dstpath = os.path.join(dstproblemdir, problemfilename)
+    shutil.copy2(srcpath, dstpath)
 
 # register this new determinized domain with PDDLGym
 pddlgym.register_pddl_env(domain_detname, istest, kwargs)
@@ -48,29 +49,49 @@ det_env = pddlgym.make(det_gym_name)
 # prepare initial conditions
 nd_env.fix_problem_index(problem_idx)
 det_env.fix_problem_index(problem_idx)
-nd_obs,_ = nd_env.reset()
-det_obs,_ = det_env.reset()
-assert(det_obs == nd_obs)
+nd_state,_ = nd_env.reset()
+det_state,_ = det_env.reset()
+assert(det_state == nd_state)
 
 #print(f"det_domain.__dict__: {det_domain.__dict__}\n")
 #print(f"det_env.domain.__dict__: {det_env.domain.__dict__}\n")
 
 # Run single instance of unit planner
 unit_planner = FF()
-plan = unit_planner(det_domain,nd_obs)
+try:
+    plan = unit_planner(det_domain,nd_state)
+except PlanningFailure:
+    print("Failure! Initial state is unsolveable.")
+    sys.exit(1)
 
 # Attempt to run plan; fail if ever diverges
 done = False; i = 0
 while not done:
     #print("do nd")
-    nd_obs,nd_reward,done,_,_ = nd_env.step(plan[i])
+    nd_state,nd_reward,done,_,_ = nd_env.step(plan[i])
     #print("do det")
-    det_obs,det_reward,_,_,_ = det_env.step(plan[i])
-    if (nd_obs != det_obs) or (nd_reward != det_reward):
+    det_state,det_reward,_,_,_ = det_env.step(plan[i])
+    if (nd_state != det_state) or (nd_reward != det_reward):
         print(f"Execution diverged from plan at action #{i}: {plan[i]}!")
-        print(f"nd_obs: {nd_obs}\n")
-        print(f"det_obs: {det_obs}\n")
-        break;
+        """
+        None of this is necessary! Sweet
+            # Write out the diverged state to a file
+            problem_out = f"{dstproblemdir}current.pddl"
+            nd_env.problem.write(problem_out, initial_state=nd_state.literals)
+            # Load that problem state into the determinized environment
+            idx = det_env.load_single_problem(problem_out)
+            # Reset determinized environment to that state
+        """
+        # Set the state of the determinized environment equal to that of the true execution from the nondeterminized environment
+        det_env.set_state(nd_state)
+        # FF-Replan: attempt to re-plan
+        print("Replanning...")
+        try:
+            plan = unit_planner(det_domain,nd_state)
+        except PlanningFailure:
+            print("Failure! Reached unsolveable state.")
+            sys.exit(1)
+        i = -1  # +1 at end of loop will reset us to 0
     i += 1
 
 if (done):
