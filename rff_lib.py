@@ -1,5 +1,7 @@
 from collections import deque
 from copy import deepcopy
+import ipdb
+from pddlgym_planners.planner import PlanningFailure
 
 # lib rff
 
@@ -9,13 +11,14 @@ THRESH = 0.05
 MAX_ITERS = 50
 
 def rollout(s0, policy, nd_gym):
+    print("ROLLOUT")
     lphi = 0.0
     for _ in range(N_ROLLOUTS):
         nd_gym.set_state(s0)
         state = s0
         done = False
         for i in range(DEPTH):
-            if done or state not in policy:
+            if done or state not in policy or policy[state] is None:
                 break
             state,_,done,_,_ = nd_gym.step(policy[state])
         if i< DEPTH and not done:  # left the policy
@@ -37,12 +40,14 @@ def iteration(Q, policy, planner, det_gym, nd_gym):
         for a in plan:
             if s2 not in policy:
                 policy[s2] = a
-            s2,_,_,_,_ = det_gym.step(policy[s2])
-            nd_gym.set_state(s)
-            for trans in nd_gym.get_all_possible_transitions(a):
-                s3 = trans[0][0]
+            nd_gym.set_state(s2)
+            #ipdb.set_trace()
+            tl = nd_gym.get_all_possible_transitions(a)
+            for trans in tl:
+                s3 = trans[0]
                 if s3 not in policy and s3 not in Q and s3 not in Q2:
                     Q2.append(s3)
+            s2,_,_,_,_ = det_gym.step(policy[s2])
     return Q2
 
 def rff(s0, det_gym, nd_gym, planner):

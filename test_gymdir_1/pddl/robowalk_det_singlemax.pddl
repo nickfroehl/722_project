@@ -8,7 +8,7 @@
 	(adjacent ?v0 - default ?v1 - default)
 	(hasrope ?v0 - default)
   )
-  ; (:actions move climb)
+  ; (:actions climb move)
 
   
 
