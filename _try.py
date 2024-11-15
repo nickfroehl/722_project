@@ -3,6 +3,7 @@ import pddlgym
 import pddlgym.determinization
 from pddlgym_planners.ff import FF
 from pddlgym_planners.planner import PlanningFailure
+import rff_lib
 
 ### SETUP
 #### CONSTS/MODE
@@ -10,7 +11,7 @@ istest = False
 kwargs = {'operators_as_actions' : True, 'dynamic_action_space' : True}
 determinize = pddlgym.determinization.singlemax
 #### PROBLEM
-domain_basename = "nested"
+domain_basename = "robowalk"
 domain_ndname = f"{domain_basename}_nd"
 nd_gym_name = f"PDDLEnv{domain_ndname.capitalize()}-v0"
 # EXPECT THAT nd_gym_name WAS PREREGISTERED IN CURRENT_GYMDIR'S __init__.py
@@ -68,6 +69,7 @@ except PlanningFailure:
 done = False; i = 0
 # l = nd_env.get_all_possible_transitions(plan[0], True)
 
+"""
 while not done:
     #print("do nd")
     nd_state,nd_reward,done,_,_ = nd_env.step(plan[i])
@@ -75,15 +77,6 @@ while not done:
     det_state,det_reward,_,_,_ = det_env.step(plan[i])
     if (nd_state != det_state) or (nd_reward != det_reward):
         print(f"Execution diverged from plan at action #{i}: {plan[i]}!")
-        """
-        None of this is necessary! Sweet
-            # Write out the diverged state to a file
-            problem_out = f"{dstproblemdir}current.pddl"
-            nd_env.problem.write(problem_out, initial_state=nd_state.literals)
-            # Load that problem state into the determinized environment
-            idx = det_env.load_single_problem(problem_out)
-            # Reset determinized environment to that state
-        """
         # Set the state of the determinized environment equal to that of the true execution from the nondeterminized environment
         det_env.set_state(nd_state)
         # FF-Replan: attempt to re-plan
@@ -97,7 +90,26 @@ while not done:
     i += 1
 
 if (done):
-    print("Plan succeeded!")
+    print("FF-Replan succeeded! Next, let's try RFF")
+"""
+nd_state,_ = nd_env.reset()
+policy = rff_lib.rff(nd_state, det_env, nd_env, unit_planner)
+
+print(f"RFF Planning finished: {policy}")
+nd_state,_ = nd_env.reset()
+done = False
+while not done:
+    if nd_state in policy:
+        action = policy[nd_state]
+        if action is None:
+            print(f"Reached unsolveable state {nd_state} with RFF!")
+            sys.exit(1)
+        nd_state,nd_reward,done,_,_ = nd_env.step(action)
+    else:
+        print(f"Reached unknown state {nd_state} with RFF!")
+        sys.exit(1)
+
+print("RFF succeeded!")
 
 ### NOTES
 # my determinization does work. interesting enough, _select_operator already appears to take care of what I thought I'd need d2nd for
