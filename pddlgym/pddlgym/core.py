@@ -66,20 +66,24 @@ def get_successor_state(state, action, domain, raise_error_on_invalid_action=Fal
 
     # A ground operator was found; execute the ground effects
     if assignment is not None:
-        # ACTUALLY SUPPORT PROBABILISTIC EFFECTS, LIKE THEY HAD FALSELY PROMISED TO DO
-        selected_effects = selected_operator.effects
-        while isinstance(selected_effects, ProbabilisticEffect):
-            selected_effects, prob = selected_effects.sample(ret_prob = True)
-            if DBG:
-                print(f"selected {selected_effects}, which has probability {prob}")
+        
+        if not get_all_transitions:
+            # ACTUALLY SUPPORT PROBABILISTIC EFFECTS, LIKE THEY HAD FALSELY PROMISED TO DO
+            selected_effects = selected_operator.effects
+            while isinstance(selected_effects, ProbabilisticEffect):
+                selected_effects, prob = selected_effects.sample(ret_prob = True)
+                if DBG:
+                    print(f"selected {selected_effects}, which has probability {prob}")
 
-        # Get operator effects
-        if isinstance(selected_effects, LiteralConjunction):
-            effects = selected_effects.literals
+            # Get operator effects
+            if isinstance(selected_effects, LiteralConjunction):
+                effects = selected_effects.literals
+            else:
+                assert isinstance(selected_effects, Literal)
+                effects = [selected_effects]
         else:
-            assert isinstance(selected_effects, Literal)
-            effects = [selected_effects]
-
+            effects = [selected_operator.effects]
+        
         state = _apply_effects(
             state,
             effects,
@@ -197,6 +201,16 @@ def _compute_new_state_from_lifted_effects(lifted_effects, assignments, new_lite
             new_literals.add(effect)
     return new_literals
 
+def flatten_effects(eff):
+    """Only handles LiteralConjunction, not ProbabilisticEffects"""
+    if isinstance(eff, LiteralConjunction):
+        lis = []
+        for lit in eff.literals:
+            lis.extend(flatten_effects(lit))
+        return lis
+    else:
+        return [eff]
+
 def _apply_effects(state, lifted_effects, assignments, get_all_transitions=False,
                    return_probs=False):
     """
@@ -220,52 +234,56 @@ def _apply_effects(state, lifted_effects, assignments, get_all_transitions=False
     # Each element of this list contain
     #   a pair of outcomes from a probabilistic effect
     probabilistic_lifted_effects = []
-    for lifted_effect in lifted_effects:
-        if isinstance(lifted_effect, ProbabilisticEffect):
-            effect_outcomes = lifted_effect.literals
-            probas = dict(zip(lifted_effect.literals,
-                              lifted_effect.probabilities))
-            cur_probabilistic_lifted_effects = []
+    for xyz in lifted_effects:
+        for lifted_effect in flatten_effects(xyz):
+            if isinstance(lifted_effect, ProbabilisticEffect):
+                probas = dict(zip(lifted_effect.literals, lifted_effect.probabilities))
 
-
-            if get_all_transitions:
-                lifted_effects_list = cur_probabilistic_lifted_effects
-            else:
-                lifted_effects_list = determinized_lifted_effects
-            sampled_effect = lifted_effect.sample()
-
-
-            # If get_all_transitions == False, create list with sampled state only
-            # Otherwise, populate it with possible outcomes
-            effects_to_process = [
-                sampled_effect] if not get_all_transitions else effect_outcomes
-
-            for chosen_effect in effects_to_process:
-                if isinstance(chosen_effect, LiteralConjunction):
-                    for lit in chosen_effect.literals:
-                        lifted_effects_list.append(lit)
-                        lit.proba = probas[chosen_effect]
+                if get_all_transitions:
+                    cur_probabilistic_lifted_effects = []
+                    effect_outcomes = lifted_effect.literals
+                    for chosen_effect in effect_outcomes:
+                        if isinstance(chosen_effect, LiteralConjunction):
+                            chosen_effect.literals[0].proba = probas[chosen_effect]
+                            for lit in chosen_effect.literals[1:]:
+                                lit.proba = 1   # don't overcount
+                            cur_probabilistic_lifted_effects.append(chosen_effect.literals)
+                            #for lit in chosen_effect.literals:
+                            #    cur_probabilistic_lifted_effects.append(lit)
+                            #    lit.proba = probas[chosen_effect]
+                        else:
+                            cur_probabilistic_lifted_effects.append([chosen_effect])
+                            chosen_effect.proba = probas[chosen_effect]
+                
+                    probabilistic_lifted_effects.append(cur_probabilistic_lifted_effects)
+                
                 else:
-                    lifted_effects_list.append(chosen_effect)
-                    chosen_effect.proba = probas[chosen_effect]
-
-            if get_all_transitions:
-                probabilistic_lifted_effects.append(
-                    cur_probabilistic_lifted_effects)
-        else:
-            determinized_lifted_effects.append(lifted_effect)
-
+                    sampled_effect = lifted_effect.sample()
+                    #determinized_lifted_effects.append(sampled_effect)
+                    determinized_lifted_effects.extend(flatten_effects(sampled_effect))
+            else:
+                #determinized_lifted_effects.append(lifted_effect)
+                determinized_lifted_effects.extend(flatten_effects(lifted_effect))
     states = []
     if not get_all_transitions:
         new_literals = _compute_new_state_from_lifted_effects(determinized_lifted_effects, assignments, new_literals)
-
         return state.with_literals(new_literals)
 
     # else - get all possible transitions
 
     # Construct combinations of probabilistic effects
-    probabilistic_effects_combinations = list(
-        product(*probabilistic_lifted_effects))
+    # NO GOD NO WHAT?
+    #   Okay, I went and changed the part above to give this List of Lists now, so this line
+    #       actually works, instead of being OBVIOUSLY AND HORRIBLY WRONG like it was before.
+    probabilistic_effects_combinations = list(product(*probabilistic_lifted_effects))
+    for i,_tuple in enumerate(probabilistic_effects_combinations):
+        flat = []
+        for inner_list in _tuple:
+            flat.extend(inner_list)
+        probabilistic_effects_combinations[i] = tuple(flat)
+    # print(len(probabilistic_lifted_effects))
+    # print(f"probabilistic_lifted_effects: {probabilistic_lifted_effects}")
+    print(f"probabilistic_effects_combinations: {probabilistic_effects_combinations}")
 
     states_to_probs = {}
     for prob_efs_combination in probabilistic_effects_combinations:
@@ -273,8 +291,7 @@ def _apply_effects(state, lifted_effects, assignments, get_all_transitions=False
         if total_proba == 0:
             continue
         new_prob_literals = set(state.literals)
-        new_determinized_lifted_effects = determinized_lifted_effects + \
-            list(prob_efs_combination)
+        new_determinized_lifted_effects = determinized_lifted_effects + list(prob_efs_combination)
         new_prob_literals = _compute_new_state_from_lifted_effects(new_determinized_lifted_effects, assignments, new_prob_literals)
 
         new_state = state.with_literals(new_prob_literals)

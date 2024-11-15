@@ -10,7 +10,7 @@ istest = False
 kwargs = {'operators_as_actions' : True, 'dynamic_action_space' : True}
 determinize = pddlgym.determinization.singlemax
 #### PROBLEM
-domain_basename = "robowalk"
+domain_basename = "nested"
 domain_ndname = f"{domain_basename}_nd"
 nd_gym_name = f"PDDLEnv{domain_ndname.capitalize()}-v0"
 # EXPECT THAT nd_gym_name WAS PREREGISTERED IN CURRENT_GYMDIR'S __init__.py
@@ -66,6 +66,8 @@ except PlanningFailure:
 
 # Attempt to run plan; fail if ever diverges
 done = False; i = 0
+# l = nd_env.get_all_possible_transitions(plan[0], True)
+
 while not done:
     #print("do nd")
     nd_state,nd_reward,done,_,_ = nd_env.step(plan[i])
